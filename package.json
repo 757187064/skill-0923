@@ -1,0 +1,26 @@
+{
+  "name": "pi-isolated-subagent-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Pi package that runs subagents in isolated pi processes using --system-prompt, with a bundled isolated-test agent and prompt template.",
+  "keywords": [
+    "pi-package"
+  ],
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./extensions/subagent/index.ts"
+    ],
+    "prompts": [
+      "./prompts/*.md"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  }
+}
