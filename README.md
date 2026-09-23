@@ -1,62 +1,116 @@
 # pi-isolated-subagent-plugin
 
-A local Pi package that delegates work to subagents running in **fully isolated
-`pi` child processes**.
+这是一个本地 Pi package/plugin，用来把任务委派给运行在**独立 `pi` 子进程**里的子 agent。
 
-It is based on the official
-`examples/extensions/subagent` extension, with two deliberate changes:
+本插件基于 Pi 官方示例 `examples/extensions/subagent` 改造，核心目标是验证：
 
-1. The child is started with `--system-prompt <file>` instead of
-   `--append-system-prompt <file>`, so the child's system prompt **replaces**
-   Pi's default system prompt rather than appending to it.
-2. The child is started with additional isolation flags:
-   `--no-extensions --no-context-files --no-skills --no-prompt-templates`.
+- 子 agent 有自己的系统提示词。
+- 子 agent 不承接主 agent 的系统提示词。
+- 子 agent 不共享主会话历史、上下文文件、skills、extensions、prompt templates。
 
-The package ships its own `isolated-test` agent and an `isolated-test` prompt
-template, so it is self-contained and never writes into the Pi agent directory.
+## 关键改动
 
-## Layout
+相比官方 subagent 示例，本插件做了两个关键改动：
 
-```
+1. 子进程使用 `--system-prompt <file>`，而不是 `--append-system-prompt <file>`。
+
+   `--system-prompt` 会替换子进程的系统提示词；如果使用 `--append-system-prompt`，则会把子 agent 提示词追加到 Pi 默认系统提示词后面，不符合隔离要求。
+
+2. 子进程启动时额外加入隔离参数：
+
+   ```text
+   --no-extensions
+   --no-context-files
+   --no-skills
+   --no-prompt-templates
+   ```
+
+   这些参数用于阻止子进程加载主环境中的扩展、上下文文件、skills 和 prompt templates。
+
+## 目录结构
+
+```text
 pi-isolated-subagent-plugin/
-├── package.json                  # "pi" manifest declares extension + prompts
-├── extensions/subagent/
-│   ├── index.ts                  # subagent tool (spawns isolated pi child)
-│   └── agents.ts                 # discovers bundled + user/project agents
+├── package.json
+├── README.md
 ├── agents/
-│   └── isolated-test.md          # bundled agent definition
-├── prompts/
-│   └── isolated-test.md          # /isolated-test prompt template
-└── README.md
+│   └── isolated-test.md
+├── extensions/
+│   └── subagent/
+│       ├── agents.ts
+│       └── index.ts
+└── prompts/
+    └── isolated-test.md
 ```
 
-## Install
+说明：
 
-```bash
+- `package.json`：声明这是一个 Pi package，并通过 `pi` 字段暴露 extension 和 prompt template。
+- `extensions/subagent/index.ts`：注册 `subagent` 工具，并负责启动隔离的 `pi` 子进程。
+- `extensions/subagent/agents.ts`：发现并读取 agent 定义。
+- `agents/isolated-test.md`：内置测试 agent，要求最终回答以 `ISOLATED:` 开头。
+- `prompts/isolated-test.md`：用于快速测试的 prompt template。
+
+## 安装
+
+如果插件目录在本机：
+
+```cmd
 pi install D:\Tools\pi-isolated-subagent-plugin
 ```
 
-Then start Pi and run:
+如果从 GitHub 克隆后安装：
 
+```cmd
+pi install 路径\到\skill-0923
 ```
+
+安装后启动 Pi：
+
+```cmd
+pi
+```
+
+## 测试
+
+进入 Pi 后运行：
+
+```text
 /isolated-test
 ```
 
-or invoke the tool directly:
+也可以直接要求主 agent 调用工具：
 
+```text
+请使用 subagent 工具，调用 agent "isolated-test"，任务是：证明你是隔离子 agent。
 ```
-Use the subagent tool with agent "isolated-test" and task "Prove you are isolated."
-```
 
-The final answer must start with `ISOLATED:`.
+预期结果：子 agent 的最终回答必须以 `ISOLATED:` 开头，并说明自己运行在隔离的 `pi` 子进程里。
 
-## Isolated child invocation
+## 子进程启动方式
 
-```
-pi --mode json -p --no-session \
-   --no-extensions --no-context-files --no-skills --no-prompt-templates \
-   --system-prompt <temp-agent-prompt> \
-   --model deepseek/deepseek-flash \
-   --tools read,grep,find,ls \
+插件中的子 agent 会以类似下面的方式启动：
+
+```text
+pi --mode json -p --no-session ^
+   --no-extensions --no-context-files --no-skills --no-prompt-templates ^
+   --system-prompt <temp-agent-prompt> ^
+   --model deepseek/deepseek-flash ^
+   --tools read,grep,find,ls ^
    Task: ...
 ```
+
+其中最重要的是：
+
+- `--system-prompt`：替换子 agent 的系统提示词。
+- `--no-session`：不继承主会话历史。
+- `--no-extensions`：不加载扩展。
+- `--no-context-files`：不加载 `AGENTS.md`、`CLAUDE.md` 等上下文文件。
+- `--no-skills`：不加载 skills。
+- `--no-prompt-templates`：不加载 prompt templates。
+
+## 注意事项
+
+这是一种“提示词与上下文隔离”，不是操作系统级安全沙箱。
+
+子 agent 仍然运行在同一台机器上，并使用当前 Pi 可用的模型凭据。若需要更强隔离，应额外使用独立配置目录、独立 API key、容器或虚拟机。
